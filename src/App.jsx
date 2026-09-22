@@ -1,4 +1,5 @@
-import { useState, useEffect } from "react";
+import { useState, useEffect, useRef } from "react";
+import html2canvas from "html2canvas";
 import "./App.css";
 
 const BASE_URL = "/api";
@@ -63,6 +64,9 @@ function App() {
   const [availableTime, setAvailableTime] = useState("");
   const [aiRecommend, setAiRecommend] = useState(null);
   const [showToast, setShowToast] = useState(false);
+  const [toastMessage, setToastMessage] = useState("링크가 복사되었어요.");
+  const [downloadPath, setDownloadPath] = useState("브라우저 다운로드 폴더 / meetpick-result.png");
+  const resultScreenRef = useRef(null);
 
   // 대기 화면(waiting)을 위한 추가 상태
   const [maxParticipants, setMaxParticipants] = useState(0);
@@ -366,6 +370,55 @@ function App() {
       fetchMeetingDetails(id);
     }
   }, []);
+
+  const handleCaptureResult = async () => {
+    if (!resultScreenRef.current) return;
+
+    try {
+      const canvas = await html2canvas(resultScreenRef.current, {
+        backgroundColor: "#f4fbf9",
+        scale: 2,
+        useCORS: true,
+      });
+
+      canvas.toBlob(async (blob) => {
+        if (!blob) return;
+
+        const fileName = "meetpick-result.png";
+        const url = URL.createObjectURL(blob);
+        const anchor = document.createElement("a");
+        anchor.href = url;
+        anchor.download = fileName;
+        document.body.appendChild(anchor);
+        anchor.click();
+        anchor.remove();
+        URL.revokeObjectURL(url);
+
+        setDownloadPath(`브라우저 다운로드 폴더 / ${fileName}`);
+
+        if (navigator.clipboard && window.ClipboardItem) {
+          try {
+            await navigator.clipboard.write([
+              new ClipboardItem({
+                [blob.type || "image/png"]: blob,
+              }),
+            ]);
+          } catch (copyError) {
+            console.warn("이미지 클립보드 복사 실패:", copyError);
+          }
+        }
+
+        setToastMessage("이미지가 저장되고 클립보드에 복사되었어요.");
+        setShowToast(true);
+        setTimeout(() => setShowToast(false), 1800);
+      }, "image/png");
+    } catch (error) {
+      console.error("결과 화면 캡처 중 오류 발생:", error);
+      setToastMessage("캡처에 실패했어요. 잠시 후 다시 시도해 주세요.");
+      setShowToast(true);
+      setTimeout(() => setShowToast(false), 1800);
+    }
+  };
 
   // 결과 화면(result)에 진입하면 자동으로 AI 추천 API를 호출합니다.
   useEffect(() => {
@@ -727,8 +780,9 @@ function App() {
             className="share-button"
             onClick={() => {
               const url = `${window.location.origin}${window.location.pathname}?meetingId=${meetingId}`;
-              
+
               const triggerToast = () => {
+                setToastMessage("링크가 복사되었어요.");
                 setShowToast(true);
                 setTimeout(() => {
                   setShowToast(false);
@@ -842,6 +896,7 @@ function App() {
 
       {/* RESULT SCREEN */}
       <section
+        ref={resultScreenRef}
         className={`screen form-screen ${currentPage === "result" ? "active" : ""
           }`}
       >
@@ -1025,15 +1080,25 @@ function App() {
             </div>
 
             <button className="capture-button"
-              onClick={() => {
-                alert("결과 화면 캡쳐 기능은 준비 중입니다!");
-              }}>
+              type="button"
+              onClick={handleCaptureResult}>
               <span className="viewfinder-corner tl"></span>
               <span className="viewfinder-corner tr"></span>
               <span className="viewfinder-corner bl"></span>
               <span className="viewfinder-corner br"></span>
               📸 결과 화면을 캡쳐해서 공유해보세요!
             </button>
+
+            <p style={{
+              marginTop: "10px",
+              marginBottom: "0",
+              color: "#4d615d",
+              fontSize: "12px",
+              lineHeight: "1.5",
+              textAlign: "center"
+            }}>
+              저장 위치: {downloadPath}
+            </p>
 
             <button className="new-meeting-button"
               onClick={() => {
@@ -1054,7 +1119,7 @@ function App() {
               <path d="M22 11.08V12a10 10 0 1 1-5.93-9.14" />
               <polyline points="22 4 12 14.01 9 11.01" />
             </svg>
-            <span className="toast-text">링크가 복사되었어요.</span>
+            <span className="toast-text">{toastMessage}</span>
           </div>
         </div>
       )}
