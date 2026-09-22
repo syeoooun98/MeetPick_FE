@@ -7,7 +7,7 @@ export default defineConfig({
   server: {
     proxy: {
       '/api': {
-        target: 'http://seoyeonlee.site',
+        target: 'https://api.seoyeonlee.site',
         changeOrigin: true,
       }
     }
